@@ -20,4 +20,8 @@ Using **Groq** for LLM tasks and **OpenAI** for embeddings.
 - **Folder**: [`pinecone-insurance-rag`](pinecone-insurance-rag)
 - Semantic search using OpenAI embeddings + Pinecone vector database
 
+### 5. Car Manual RAG with LangChain + Pinecone
+- **Folder**: [`car-manual-rag-langchain`](car-manual-rag-langchain)
+- Full RAG pipeline using LangChain, Pinecone, and GPT-4o-mini on a car manual
+
 Part of my 12-week journey to Junior+ AI/LLM Engineer (Russian market).
