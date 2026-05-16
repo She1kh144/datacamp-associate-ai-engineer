@@ -7,7 +7,7 @@ Using **Groq** (Llama-3-8B) instead of OpenAI for all projects.
 ## Week 1 Mini-Projects
 
 ### 1. Paris Trip Planner
-- **Folder**: [`week-1/paris-trip-planner-groq`](week-1/paris-trip-planner-groq)
+- **Folder**: [`paris-trip-planner-groq`](paris-trip-planner-groq)
 - Clean chatbot using Groq + structured conversation history
 - Professional project structure with prompts, .env, requirements
 
