@@ -1,8 +1,9 @@
-import os
-import pandas as pd
-import json
+from prompts import SYSTEM_PROMPT
 from dotenv import load_dotenv
 from openai import OpenAI
+import pandas as pd
+import json
+import os
 
 load_dotenv()
 
@@ -16,12 +17,14 @@ client = OpenAI(
     base_url="https://api.groq.com/openai/v1"
 )
 
+MODEL = "llama3-8b-8192"
+
 for _, row in df.iterrows():
     row_json = row.to_json(orient='records')
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=MODEL,
         messages=[
-            {"role": "system", "content": "you are a data analyst."},
+            {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"analyze this data: {row_json}"}
         ],
         tools=[{
