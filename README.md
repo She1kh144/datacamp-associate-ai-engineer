@@ -16,4 +16,8 @@ Using **Groq** for LLM tasks and **OpenAI** for embeddings.
 - **Folder**: [`topic-analysis-clothing-reviews`](topic-analysis-clothing-reviews)
 - Embeddings, t-SNE visualization, cosine similarity, and review categorization
 
+### 4. Insurance Claims RAG with Pinecone
+- **Folder**: [`pinecone-insurance-rag`](pinecone-insurance-rag)
+- Semantic search using OpenAI embeddings + Pinecone vector database
+
 Part of my 12-week journey to Junior+ AI/LLM Engineer (Russian market).
