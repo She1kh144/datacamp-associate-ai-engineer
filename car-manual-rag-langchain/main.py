@@ -1,91 +1,83 @@
-# !!!Note that index is already created and contains data on Pinecone!!!
-# Import the relevant Python libraries
-import os
-import pandas as pd
-import numpy as np
-from openai import OpenAI
+# Import the required packages
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_community.document_loaders import UnstructuredHTMLLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_pinecone import PineconeVectorStore
+from langchain.chains import create_retrieval_chain
+from langchain.chains.combine_documents.stuff import create_stuff_documents_chain
 from dotenv import load_dotenv
-from pinecone import Pinecone, ServerlessSpec 
+from pinecone import Pinecone, ServerlessSpec
+import os
 
+# Load environment variables from .env file
 load_dotenv()
 
-def create_embeddings(texts):
-    """
-    Creates embeddings out of provided texts
+# Load the models required to complete the exercise (api_key is already set up)
+llm = ChatOpenAI(api_key=os.getenv("OPENAI_API_KEY"), model="gpt-4o-mini", temperature=0)
+embedding_model = OpenAIEmbeddings(model="text-embedding-3-small")
 
-    Args:
-        texts (List[str] or str): texts to be embedded
+# Load the HTML as a LangChain document loader
+loader = UnstructuredHTMLLoader(file_path="data/mg-zs-warning-messages.html")
+car_docs = loader.load()
 
-    Returns:
-        List[List[float]]
-    """
-    response = client.embeddings.create(
-        model="text-embedding-3-small",
-        input=texts
-    )
-    
-    response_dict = response.model_dump()
-    return [data["embedding"] for data in response_dict["data"]]
-
-def retrieve_closest(query):
-    """
-    Retrieves the closest claim to the query by meaning
-
-    Args:
-        query (List[float]): embedded query
-
-    Returns:
-        response to the query
-    """
-    closest = insurance_index.query(
-        vector=query,
-        top_k=1,
-        include_metadata=True
-    )
-
-    return closest
-
-# Load needed data
-df = pd.read_csv("insurance_claims_top_100.csv")
-
-# Connect to OpenAI and Pinecone via api
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Initialize Pinecone client
 pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
 
-# Preparing data for Pinecone
-ids = df["ClaimNumber"].tolist()
-descriptions = df["ClaimDescription"].tolist()
-metadatas = [{"age": row["Age"], "gender": row["Gender"]} for _, row in df.iterrows()]
+# Split car_docs
+splitter = RecursiveCharacterTextSplitter(chunk_size=100, chunk_overlap=30)
+chunks = splitter.split_documents(car_docs)
 
-# Embedding descriptions
-embeds = create_embeddings(descriptions)
-
-# Create index in Pinecone and connect to it
-index_name = "insurance-index"
+# Create index if it doesn't exist
+index_name = "car-manual-rag"
 if not pc.has_index(name=index_name):
     pc.create_index(
         name=index_name,
-        dimension=1536,
+        dimension=1536,  # text-embedding-3-small dimension
+        metric="cosine",  # by default           
         spec=ServerlessSpec(
             cloud="aws",
             region="us-east-1"
         )
     )
-insurance_index = pc.Index(index_name) 
 
-# Ingesting all data into the index
-insurance_index.upsert(vectors=list(zip(ids, embeds, metadatas)))
+# Embed and ingest documents to the index once
+# Then you can just use .from_existing_index(index_name, embeddings)
+"""
+vectorstore = PineconeVectorStore.from_documents(
+    documents=chunks,
+    embedding=embedding_model,
+    index_name=index_name
+)
+"""
+vectorstore = PineconeVectorStore.from_existing_index(
+    index_name=index_name,
+    embedding=embedding_model
+)
 
-query1 = "Car accident with rear-end collision"
-query1_embedded = create_embeddings(query1)[0]
+# Create a retriever
+retriever = vectorstore.as_retriever(
+    search_type="similarity",
+    search_kwargs={"k": 6}
+)
 
-query2 = "Worker developed carpal tunnel syndrome from repetitive typing"
-query2_embedded = create_embeddings(query2)[0]
+system_prompt = (
+    "You are a helpful assistant for MG ZS car owners. "
+    "Answer questions about dashboard warning lights and what to do. "
+    "Use only the provided context. Be clear, concise, and actionable. "
+    "If the answer is not in the context, say 'I don't have information about that in the manual.'\n\n"
+    "Context: {context}"
+)
 
-# Finding the most semantically similar claims to queries
-closest_claim = retrieve_closest(query1_embedded)
-closest_claim_id = closest_claim["matches"][0]["id"]
-closest_claim_description = df[df["ClaimNumber"] == closest_claim_id]["ClaimDescription"].values[0]
+prompt = ChatPromptTemplate.from_messages([
+    ("system", system_prompt),
+    ("human", "{input}"),
+])
 
-id = retrieve_closest(query2_embedded)["matches"][0]["id"]
-closest_claim_description_carpal_tunnel = df[df["ClaimNumber"] == id]["ClaimDescription"].values[0]
+question_answer_chain = create_stuff_documents_chain(llm, prompt)
+rag_chain = create_retrieval_chain(retriever, question_answer_chain)
+
+query = "The Gasoline Particular Filter Full warning has appeared. What does this mean and what should I do about it?"
+response = rag_chain.invoke({"input": query})
+answer = response["answer"]
+print(answer)
